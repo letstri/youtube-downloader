@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiDownloadRouteImport } from './routes/api/download'
+import { Route as ApiInfoRouteImport } from './routes/api/info'
 import { Route as ApiJobsRouteImport } from './routes/api/jobs'
 
 const IndexRoute = IndexRouteImport.update({
@@ -23,6 +24,11 @@ const ApiDownloadRoute = ApiDownloadRouteImport.update({
   path: '/api/download',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiInfoRoute = ApiInfoRouteImport.update({
+  id: '/api/info',
+  path: '/api/info',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiJobsRoute = ApiJobsRouteImport.update({
   id: '/api/jobs',
   path: '/api/jobs',
@@ -32,30 +38,34 @@ const ApiJobsRoute = ApiJobsRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/download': typeof ApiDownloadRoute
+  '/api/info': typeof ApiInfoRoute
   '/api/jobs': typeof ApiJobsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/download': typeof ApiDownloadRoute
+  '/api/info': typeof ApiInfoRoute
   '/api/jobs': typeof ApiJobsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/download': typeof ApiDownloadRoute
+  '/api/info': typeof ApiInfoRoute
   '/api/jobs': typeof ApiJobsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/download' | '/api/jobs'
+  fullPaths: '/' | '/api/download' | '/api/info' | '/api/jobs'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/download' | '/api/jobs'
-  id: '__root__' | '/' | '/api/download' | '/api/jobs'
+  to: '/' | '/api/download' | '/api/info' | '/api/jobs'
+  id: '__root__' | '/' | '/api/download' | '/api/info' | '/api/jobs'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiDownloadRoute: typeof ApiDownloadRoute
+  ApiInfoRoute: typeof ApiInfoRoute
   ApiJobsRoute: typeof ApiJobsRoute
 }
 
@@ -75,6 +85,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDownloadRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/info': {
+      id: '/api/info'
+      path: '/api/info'
+      fullPath: '/api/info'
+      preLoaderRoute: typeof ApiInfoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/jobs': {
       id: '/api/jobs'
       path: '/api/jobs'
@@ -88,6 +105,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiDownloadRoute: ApiDownloadRoute,
+  ApiInfoRoute: ApiInfoRoute,
   ApiJobsRoute: ApiJobsRoute,
 }
 export const routeTree = rootRouteImport

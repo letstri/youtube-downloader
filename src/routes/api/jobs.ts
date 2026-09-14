@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { assertYoutubeUrl, createJob, getJob, isMode } from '../../server/jobs'
+import { assertYoutubeUrl, cancelJob, createJob, getJob, isMode } from '../../server/jobs'
 
 export const Route = createFileRoute('/api/jobs')({
   server: {
@@ -50,7 +50,18 @@ export const Route = createFileRoute('/api/jobs')({
           filename: job.filename,
           size: job.size,
           error: job.error,
+          speed: job.speed,
+          eta: job.eta,
+          step: job.step,
         })
+      },
+
+      // Cancel a running download and bin whatever it wrote. Query: ?id=<job id>
+      DELETE: async ({ request }) => {
+        const id = new URL(request.url).searchParams.get('id')
+        if (!id) return Response.json({ error: 'id is required' }, { status: 400 })
+        const cancelled = await cancelJob(id)
+        return Response.json({ cancelled })
       },
     },
   },

@@ -51,20 +51,40 @@ instance → the browser). `MAX_CONCURRENT` is the only brake.
 ## API
 
 ```sh
-POST /api/jobs        {"url": "...", "mode": "max"}  -> 202 {"id"}
-GET  /api/jobs?id=    -> {status, stage, percent, filename, size, error}
-GET  /api/download?id= -> the file, then deletes it server-side
+GET    /api/info?url=   -> {title, duration, thumbnail, uploader}, no download
+POST   /api/jobs        {"url": "...", "mode": "max"}  -> 202 {"id"}
+GET    /api/jobs?id=    -> {status, stage, percent, speed, eta, step, filename, size, error}
+DELETE /api/jobs?id=    -> cancels a running job and deletes its files
+GET    /api/download?id= -> the file, then deletes it server-side
 ```
 
 ## How it works
 
+Typing a link hits `/api/info`, which runs `yt-dlp --skip-download` and prints
+just four fields, so the page can show the title and thumbnail before you commit
+to anything.
+
 `POST /api/jobs` spawns `yt-dlp` into a temp dir and returns a job id. The
 browser polls status until `done`, then hits `/api/download`, which streams the
-file and deletes it on stream close. Anything left behind is swept after 30 min.
+file and deletes it on stream close.
 
 Downloading to disk first is deliberate: `yt-dlp` writing to stdout silently
 falls back to MPEG-TS (ignoring `--merge-output-format`, ~69% muxing overhead),
 so streaming the merge directly cannot produce a real mp4.
+
+### Nothing outlives its job
+
+Video files are big and the disk is shared, so every path off the happy road
+deletes too:
+
+| What happens | When the files go |
+|---|---|
+| You save the file | On stream close, success or aborted mid-transfer |
+| You press Cancel | Immediately, and `yt-dlp` is killed |
+| The download fails | Immediately, including partial `.part` files |
+| You never collect it | Swept 30 minutes after the job started |
+| Redeploy or restart | On `SIGTERM`/`SIGINT`, before the process exits |
+| The process was killed outright | Startup sweep reclaims stray `dl-*` dirs |
 
 ## Notes and limits
 
@@ -72,6 +92,9 @@ so streaming the merge directly cannot produce a real mp4.
   one Railway replica. Scaling out needs Redis for jobs and S3 for files.
 - **Railway's disk is ephemeral.** Fine here, since files are temporary by
   design, but a job does not survive a restart.
+- **`/api/info` is uncapped.** Only `MAX_CONCURRENT` downloads are limited; the
+  metadata lookup is a ~1s process with a 20s timeout. Worth a rate limit if the
+  URL ever gets shared around.
 - **yt-dlp goes stale.** YouTube breaks extraction every few weeks; the symptom
   is `HTTP Error 403` partway through a download. The Dockerfile pulls the
   latest release at build time, so redeploying is the fix.

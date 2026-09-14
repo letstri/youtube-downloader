@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
+import { rmSync } from 'node:fs'
+import { mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -14,6 +15,9 @@ const YOUTUBE_HOSTS = new Set([
   'youtube-nocookie.com',
   'www.youtube-nocookie.com',
 ])
+
+/** Every temp dir this service makes starts with this, so orphans are findable. */
+const DIR_PREFIX = 'dl-'
 
 /**
  * Only https YouTube URLs are accepted. yt-dlp is happy to fetch arbitrary
@@ -39,12 +43,7 @@ export function assertYoutubeUrl(raw: unknown): string {
 
 export const MODES = {
   /** Max quality, any codec (AV1/VP9, 4K+). mkv because it muxes anything. */
-  max: [
-    '-f',
-    'bv*+ba/b',
-    '--merge-output-format',
-    'mkv',
-  ],
+  max: ['-f', 'bv*+ba/b', '--merge-output-format', 'mkv'],
   /** H.264 + AAC, capped at 1080p by YouTube, but opens in QuickTime/iOS/anything. */
   compatible: [
     '-f',
@@ -66,10 +65,16 @@ export type Job = {
   id: string
   url: string
   mode: Mode
-  status: 'running' | 'done' | 'error'
+  status: 'running' | 'done' | 'error' | 'cancelled'
   /** 0-100 for the file currently downloading, null before the first progress line. */
   percent: number | null
+  /** Bytes per second, straight from yt-dlp. */
+  speed: number | null
+  /** Seconds remaining for the current stream. */
+  eta: number | null
   stage: string
+  /** Which stream of the download we are on: YouTube serves video and audio apart. */
+  step: number
   filename: string | null
   size: number | null
   error: string | null
@@ -93,17 +98,52 @@ export function runningCount(): number {
   return n
 }
 
+export type Progress = {
+  percent: number | null
+  speed: number | null
+  eta: number | null
+}
+
 /**
  * yt-dlp writes one of these per progress tick because of --progress-template.
- * Format: `PROG|<downloaded bytes>|<total bytes or NA>`
+ * Format: `PROG|<downloaded>|<total or NA>|<bytes per sec or NA>|<eta secs or NA>`
  */
-export function parseProgress(line: string): number | null {
+export function parseProgress(line: string): Progress | null {
   if (!line.startsWith('PROG|')) return null
-  const [, doneRaw, totalRaw] = line.split('|')
-  const done = Number(doneRaw)
-  const total = Number(totalRaw)
-  if (!Number.isFinite(done) || !Number.isFinite(total) || total <= 0) return null
-  return Math.min(100, Math.round((done / total) * 100))
+  const [, doneRaw, totalRaw, speedRaw, etaRaw] = line.split('|')
+
+  const num = (raw: string | undefined) => {
+    const n = Number(raw)
+    return Number.isFinite(n) ? n : null
+  }
+
+  const done = num(doneRaw)
+  const total = num(totalRaw)
+  const percent =
+    done !== null && total !== null && total > 0
+      ? Math.min(100, Math.round((done / total) * 100))
+      : null
+
+  return { percent, speed: num(speedRaw), eta: num(etaRaw) }
+}
+
+/** yt-dlp's failures are walls of text. Say the useful thing instead. */
+export function friendlyError(stderr: string): string {
+  const text = stderr.trim()
+  if (/confirm you(')?re not a bot|Sign in to confirm/i.test(text)) {
+    return 'YouTube is asking this server to prove it is not a bot. Set YTDLP_COOKIES to get past it.'
+  }
+  if (/private video|video is private/i.test(text)) return 'That video is private.'
+  if (/members-only|join this channel/i.test(text)) return 'That video is members-only.'
+  if (/video (is )?unavailable/i.test(text)) return 'That video is unavailable.'
+  if (/age|confirm your age/i.test(text) && /restrict/i.test(text)) {
+    return 'That video is age-restricted. Set YTDLP_COOKIES to get past it.'
+  }
+  if (/HTTP Error 403/i.test(text)) {
+    return 'YouTube refused the download part-way through. This usually means yt-dlp is out of date — redeploy to rebuild it.'
+  }
+  if (/Unsupported URL|is not a valid URL/i.test(text)) return 'yt-dlp did not recognise that link.'
+  return text || 'yt-dlp failed without saying why.'
 }
 
 async function cookiesFile(dir: string): Promise<string[]> {
@@ -114,13 +154,75 @@ async function cookiesFile(dir: string): Promise<string[]> {
   return ['--cookies', path]
 }
 
+/** Title, duration and thumbnail, without touching the video itself. */
+export async function fetchInfo(url: string): Promise<{
+  title: string
+  duration: number | null
+  thumbnail: string | null
+  uploader: string | null
+}> {
+  const args = [
+    '--no-playlist',
+    '--skip-download',
+    '--no-warnings',
+    '--print',
+    '%(.{title,duration,thumbnail,uploader})j',
+    '--',
+    url,
+  ]
+
+  return await new Promise((resolve, reject) => {
+    const proc = spawn('yt-dlp', args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    let out = ''
+    let err = ''
+
+    // A hung metadata lookup must not pin a process forever.
+    const timeout = setTimeout(() => {
+      proc.kill('SIGKILL')
+      reject(new Error('Timed out reading video info.'))
+    }, 20_000)
+
+    proc.stdout.setEncoding('utf8')
+    proc.stdout.on('data', (c: string) => (out += c))
+    proc.stderr.setEncoding('utf8')
+    proc.stderr.on('data', (c: string) => (err = (err + c).slice(-2000)))
+
+    proc.on('error', (e) => {
+      clearTimeout(timeout)
+      reject(
+        new Error(
+          e.message.includes('ENOENT')
+            ? 'yt-dlp is not installed on the server'
+            : e.message,
+        ),
+      )
+    })
+
+    proc.on('close', (code) => {
+      clearTimeout(timeout)
+      if (code !== 0) return reject(new Error(friendlyError(err)))
+      try {
+        const info = JSON.parse(out.trim().split('\n')[0] ?? '{}')
+        resolve({
+          title: info.title ?? 'Untitled',
+          duration: typeof info.duration === 'number' ? info.duration : null,
+          thumbnail: info.thumbnail ?? null,
+          uploader: info.uploader ?? null,
+        })
+      } catch {
+        reject(new Error('Could not read video info.'))
+      }
+    })
+  })
+}
+
 export async function createJob(url: string, mode: Mode): Promise<Job> {
   if (runningCount() >= MAX_CONCURRENT) {
     throw new Error(`Too many downloads running (limit ${MAX_CONCURRENT}). Try again shortly.`)
   }
 
   const id = randomUUID()
-  const dir = await mkdtemp(join(tmpdir(), 'dl-'))
+  const dir = await mkdtemp(join(tmpdir(), DIR_PREFIX))
 
   const job: Job = {
     id,
@@ -128,7 +230,10 @@ export async function createJob(url: string, mode: Mode): Promise<Job> {
     mode,
     status: 'running',
     percent: null,
+    speed: null,
+    eta: null,
     stage: 'starting',
+    step: 0,
     filename: null,
     size: null,
     error: null,
@@ -144,7 +249,7 @@ export async function createJob(url: string, mode: Mode): Promise<Job> {
     '--no-playlist',
     '--newline',
     '--progress-template',
-    'download:PROG|%(progress.downloaded_bytes)s|%(progress.total_bytes,progress.total_bytes_estimate)s',
+    'download:PROG|%(progress.downloaded_bytes)s|%(progress.total_bytes,progress.total_bytes_estimate)s|%(progress.speed)s|%(progress.eta)s',
     '--restrict-filenames',
     '-o',
     join(dir, '%(title)s.%(ext)s'),
@@ -161,16 +266,25 @@ export async function createJob(url: string, mode: Mode): Promise<Job> {
   proc.stdout.setEncoding('utf8')
   proc.stdout.on('data', (chunk: string) => {
     for (const line of chunk.split('\n')) {
-      const percent = parseProgress(line)
-      if (percent !== null) {
-        job.percent = percent
+      const progress = parseProgress(line)
+      if (progress) {
+        job.percent = progress.percent
+        job.speed = progress.speed
+        job.eta = progress.eta
         job.stage = 'downloading'
+      } else if (line.includes('Destination:')) {
+        // YouTube serves video and audio separately, so this fires once per stream.
+        job.step += 1
       } else if (line.includes('[Merger]')) {
-        job.stage = 'merging'
+        job.stage = 'merging video and audio'
         job.percent = null
+        job.speed = null
+        job.eta = null
       } else if (line.includes('[ExtractAudio]')) {
         job.stage = 'extracting audio'
         job.percent = null
+        job.speed = null
+        job.eta = null
       }
     }
   })
@@ -186,36 +300,46 @@ export async function createJob(url: string, mode: Mode): Promise<Job> {
       err.message.includes('ENOENT')
         ? 'yt-dlp is not installed on the server'
         : err.message
+    // Nothing usable was produced, so do not wait for the sweep to reclaim it.
+    void rm(job.dir, { recursive: true, force: true })
   })
 
   proc.on('close', async (code) => {
     job.proc = null
-    if (job.status === 'error') return
+    if (job.status === 'error' || job.status === 'cancelled') return
+
     if (code !== 0) {
       job.status = 'error'
-      job.error = stderrTail.trim() || `yt-dlp exited with code ${code}`
+      job.error = friendlyError(stderrTail)
+      void rm(job.dir, { recursive: true, force: true })
       return
     }
+
     const files = (await readdir(dir, { withFileTypes: true }))
       .filter((f) => f.isFile() && f.name !== 'cookies.txt')
       .map((f) => f.name)
     const produced = files[0]
+
     if (!produced) {
       job.status = 'error'
       job.error = 'yt-dlp finished but produced no file'
+      void rm(job.dir, { recursive: true, force: true })
       return
     }
-    const { size } = await import('node:fs/promises').then((fs) => fs.stat(join(dir, produced)))
+
     job.filename = produced
-    job.size = size
+    job.size = (await stat(join(dir, produced))).size
     job.stage = 'ready'
     job.percent = 100
+    job.speed = null
+    job.eta = null
     job.status = 'done'
   })
 
   return job
 }
 
+/** Forget the job and delete whatever it wrote. Safe to call twice. */
 export async function discardJob(id: string): Promise<void> {
   const job = jobs.get(id)
   if (!job) return
@@ -224,6 +348,39 @@ export async function discardJob(id: string): Promise<void> {
   await rm(job.dir, { recursive: true, force: true })
 }
 
+export async function cancelJob(id: string): Promise<boolean> {
+  const job = jobs.get(id)
+  if (!job || job.status !== 'running') return false
+  job.status = 'cancelled'
+  await discardJob(id)
+  return true
+}
+
+/**
+ * Videos are large and this disk is shared, so nothing is allowed to outlive
+ * its job. Files go on delivery; these are the paths that bypass delivery —
+ * a job nobody collected, and dirs stranded by a crash or a redeploy.
+ */
+async function sweepOrphans(): Promise<void> {
+  const live = new Set([...jobs.values()].map((j) => j.dir))
+  const base = tmpdir()
+  let entries: string[]
+  try {
+    entries = await readdir(base)
+  } catch {
+    return
+  }
+  for (const name of entries) {
+    if (!name.startsWith(DIR_PREFIX)) continue
+    const path = join(base, name)
+    if (live.has(path)) continue
+    await rm(path, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
+// Reclaim anything a previous process left behind before serving a request.
+void sweepOrphans()
+
 // ponytail: in-memory job map + interval sweep. Single Railway instance only.
 // If this ever scales past one replica, jobs need Redis and files need S3.
 const sweep = setInterval(() => {
@@ -231,5 +388,23 @@ const sweep = setInterval(() => {
   for (const job of jobs.values()) {
     if (job.createdAt < cutoff) void discardJob(job.id)
   }
+  void sweepOrphans()
 }, 5 * 60 * 1000)
 sweep.unref?.()
+
+// Railway sends SIGTERM on every redeploy; take the files with us.
+let shuttingDown = false
+for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+  process.on(signal, () => {
+    if (shuttingDown) return
+    shuttingDown = true
+    for (const job of jobs.values()) {
+      job.proc?.kill('SIGKILL')
+      try {
+        // Sync on purpose: the process is on its way out, promises will not settle.
+        rmSync(job.dir, { recursive: true, force: true })
+      } catch {}
+    }
+    process.exit(0)
+  })
+}

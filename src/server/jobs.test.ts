@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { assertYoutubeUrl, isMode, parseProgress } from './jobs.ts'
+import { assertYoutubeUrl, friendlyError, isMode, parseProgress } from './jobs.ts'
 
 test('accepts real YouTube URLs', () => {
   for (const url of [
@@ -29,10 +29,14 @@ test('rejects anything that is not an https YouTube URL', () => {
 })
 
 test('parses yt-dlp progress lines', () => {
-  assert.equal(parseProgress('PROG|500|1000'), 50)
-  assert.equal(parseProgress('PROG|1000|1000'), 100)
-  assert.equal(parseProgress('PROG|2000|1000'), 100) // estimate undershot, clamp
-  assert.equal(parseProgress('PROG|0|NA'), null) // size unknown yet
+  assert.deepEqual(parseProgress('PROG|500|1000|250000|12'), {
+    percent: 50,
+    speed: 250000,
+    eta: 12,
+  })
+  assert.equal(parseProgress('PROG|2000|1000|1|1')?.percent, 100) // estimate undershot, clamp
+  assert.equal(parseProgress('PROG|0|NA|NA|NA')?.percent, null) // size unknown yet
+  assert.equal(parseProgress('PROG|0|NA|NA|NA')?.speed, null)
   assert.equal(parseProgress('[download] Destination: foo.mp4'), null)
   assert.equal(parseProgress(''), null)
 })
@@ -40,4 +44,19 @@ test('parses yt-dlp progress lines', () => {
 test('only known modes pass', () => {
   assert.ok(isMode('max') && isMode('compatible') && isMode('audio'))
   assert.ok(!isMode('rm -rf /') && !isMode('') && !isMode(undefined))
+})
+
+test('turns yt-dlp noise into something readable', () => {
+  assert.match(
+    friendlyError('ERROR: [youtube] x: Sign in to confirm you’re not a bot'),
+    /YTDLP_COOKIES/,
+  )
+  assert.match(friendlyError('ERROR: [youtube] x: Private video'), /private/i)
+  // yt-dlp phrases these two ways; both must be caught.
+  assert.match(friendlyError('ERROR: [youtube] x: This video is unavailable'), /unavailable/i)
+  assert.match(friendlyError('ERROR: [youtube] x: Video unavailable'), /unavailable/i)
+  assert.match(friendlyError('ERROR: unable to download: HTTP Error 403: Forbidden'), /out of date/i)
+  assert.match(friendlyError(''), /without saying why/)
+  // Anything unrecognised is passed through rather than swallowed.
+  assert.equal(friendlyError('ERROR: something new'), 'ERROR: something new')
 })
