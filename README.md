@@ -1,0 +1,82 @@
+# downloader
+
+Small TanStack Start service that wraps `yt-dlp`. Paste a YouTube link, pick a
+quality, get the file. Built to run as a single container on Railway.
+
+## Quality modes
+
+| Mode | Format | Ceiling | Notes |
+|---|---|---|---|
+| `max` | mkv | 4K+ | Best stream YouTube has, any codec (AV1/VP9 + Opus). Plays in VLC/IINA, **not** QuickTime. |
+| `compatible` | mp4 | 1080p | H.264 + AAC. YouTube does not serve H.264 above 1080p. Opens anywhere. |
+| `audio` | mp3 | — | Audio track only. |
+
+`max` uses mkv on purpose: it is the only container that muxes every codec
+YouTube serves without re-encoding. Forcing mp4 there would either transcode
+(slow) or produce a file QuickTime refuses.
+
+## Running locally
+
+```sh
+npm install
+npm run dev          # http://localhost:3000
+```
+
+Needs `yt-dlp` and `ffmpeg` on PATH: `brew install yt-dlp ffmpeg`.
+
+```sh
+npm test             # URL validation + progress parsing
+npm run typecheck
+npm run build && npm start
+```
+
+## Deploying to Railway
+
+1. Push this folder to a Git repo.
+2. Railway → New Project → Deploy from repo. It reads `railway.json` and builds
+   the `Dockerfile` (which installs `ffmpeg` and `yt-dlp` — Nixpacks will not).
+3. Set `AUTH_TOKEN` in Railway's variables. **Do this before the first deploy.**
+   Without it the URL is open to the internet and anyone can burn your CPU,
+   bandwidth and egress bill.
+4. Railway injects `PORT` on its own; do not set it.
+
+### Environment variables
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `AUTH_TOKEN` | for any public deploy | Requests must send `Authorization: Bearer <token>`. The UI prompts once and stores it in `localStorage`. |
+| `MAX_CONCURRENT` | no (default `2`) | Simultaneous downloads. Raise only if the instance has the CPU for parallel ffmpeg merges. |
+| `YTDLP_COOKIES` | no | Netscape-format cookie file **contents** (not a path), for videos behind "sign in to confirm you're not a bot" or age gates. |
+
+## API
+
+```sh
+POST /api/jobs        {"url": "...", "mode": "max"}  -> 202 {"id"}
+GET  /api/jobs?id=    -> {status, stage, percent, filename, size, error}
+GET  /api/download?id= -> the file, then deletes it server-side
+GET  /api/config      -> {authRequired}
+```
+
+## How it works
+
+`POST /api/jobs` spawns `yt-dlp` into a temp dir and returns a job id. The
+browser polls status until `done`, then hits `/api/download`, which streams the
+file and deletes it on stream close. Anything left behind is swept after 30 min.
+
+Downloading to disk first is deliberate: `yt-dlp` writing to stdout silently
+falls back to MPEG-TS (ignoring `--merge-output-format`, ~69% muxing overhead),
+so streaming the merge directly cannot produce a real mp4.
+
+## Notes and limits
+
+- **State is in memory and files are on local disk**, so this runs as exactly
+  one Railway replica. Scaling out needs Redis for jobs and S3 for files.
+- **Railway's disk is ephemeral.** Fine here, since files are temporary by
+  design, but a job does not survive a restart.
+- **yt-dlp goes stale.** YouTube breaks extraction every few weeks; the symptom
+  is `HTTP Error 403` partway through a download. The Dockerfile pulls the
+  latest release at build time, so redeploying is the fix.
+- Only YouTube hosts are accepted. That check is the SSRF boundary, not a
+  convenience — `yt-dlp` will happily fetch internal addresses otherwise.
+- Downloading videos you do not own may breach YouTube's Terms of Service.
+  Your call what you point it at.
