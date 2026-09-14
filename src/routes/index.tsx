@@ -26,27 +26,15 @@ function mb(bytes: number) {
 function Home() {
   const [url, setUrl] = useState('')
   const [mode, setMode] = useState('max')
-  const [token, setToken] = useState('')
-  const [needsToken, setNeedsToken] = useState(false)
   const [job, setJob] = useState<Status | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
-  useEffect(() => {
-    setToken(localStorage.getItem('token') ?? '')
-    fetch('/api/config')
-      .then((r) => r.json())
-      .then((c) => setNeedsToken(c.authRequired))
-      .catch(() => {})
-    return () => clearTimeout(timer.current)
-  }, [])
-
-  const auth = (): HeadersInit =>
-    token ? { authorization: `Bearer ${token}` } : {}
+  useEffect(() => () => clearTimeout(timer.current), [])
 
   async function poll(id: string) {
-    const res = await fetch(`/api/jobs?id=${id}`, { headers: auth() })
+    const res = await fetch(`/api/jobs?id=${id}`)
     const data = (await res.json()) as Status & { error?: string }
     if (!res.ok) {
       setError(data.error ?? 'lost track of the job')
@@ -67,11 +55,10 @@ function Home() {
     setError(null)
     setJob(null)
     setBusy(true)
-    localStorage.setItem('token', token)
 
     const res = await fetch('/api/jobs', {
       method: 'POST',
-      headers: { 'content-type': 'application/json', ...auth() },
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ url, mode }),
     })
     const data = await res.json()
@@ -111,14 +98,6 @@ function Home() {
             {busy ? 'Working…' : 'Download'}
           </button>
         </div>
-        {needsToken && (
-          <input
-            type="password"
-            placeholder="Access token"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-          />
-        )}
       </form>
 
       {(job || error) && (

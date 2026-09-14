@@ -35,16 +35,16 @@ npm run build && npm start
 1. Push this folder to a Git repo.
 2. Railway → New Project → Deploy from repo. It reads `railway.json` and builds
    the `Dockerfile` (which installs `ffmpeg` and `yt-dlp` — Nixpacks will not).
-3. Set `AUTH_TOKEN` in Railway's variables. **Do this before the first deploy.**
-   Without it the URL is open to the internet and anyone can burn your CPU,
-   bandwidth and egress bill.
-4. Railway injects `PORT` on its own; do not set it.
+3. Railway injects `PORT` on its own; do not set it.
+
+There is no authentication. The deployed URL is a public YouTube downloader for
+anyone who has the link, and every download bills egress twice (YouTube → the
+instance → the browser). `MAX_CONCURRENT` is the only brake.
 
 ### Environment variables
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `AUTH_TOKEN` | for any public deploy | Requests must send `Authorization: Bearer <token>`. The UI prompts once and stores it in `localStorage`. |
 | `MAX_CONCURRENT` | no (default `2`) | Simultaneous downloads. Raise only if the instance has the CPU for parallel ffmpeg merges. |
 | `YTDLP_COOKIES` | no | Netscape-format cookie file **contents** (not a path), for videos behind "sign in to confirm you're not a bot" or age gates. |
 
@@ -54,7 +54,6 @@ npm run build && npm start
 POST /api/jobs        {"url": "...", "mode": "max"}  -> 202 {"id"}
 GET  /api/jobs?id=    -> {status, stage, percent, filename, size, error}
 GET  /api/download?id= -> the file, then deletes it server-side
-GET  /api/config      -> {authRequired}
 ```
 
 ## How it works
@@ -77,6 +76,7 @@ so streaming the merge directly cannot produce a real mp4.
   is `HTTP Error 403` partway through a download. The Dockerfile pulls the
   latest release at build time, so redeploying is the fix.
 - Only YouTube hosts are accepted. That check is the SSRF boundary, not a
-  convenience — `yt-dlp` will happily fetch internal addresses otherwise.
+  convenience — `yt-dlp` will happily fetch internal addresses otherwise. It is
+  also the only input restriction left, so keep it.
 - Downloading videos you do not own may breach YouTube's Terms of Service.
   Your call what you point it at.

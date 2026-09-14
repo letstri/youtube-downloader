@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import { createReadStream } from 'node:fs'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
-import { checkAuth, json } from '../../server/auth'
 import { discardJob, getJob } from '../../server/jobs'
 
 const TYPES: Record<string, string> = {
@@ -18,14 +17,11 @@ export const Route = createFileRoute('/api/download')({
     handlers: {
       // Stream the finished file, then delete it. Query: ?id=<job id>
       GET: async ({ request }) => {
-        const denied = checkAuth(request)
-        if (denied) return denied
-
         const id = new URL(request.url).searchParams.get('id')
         const job = id ? getJob(id) : undefined
-        if (!job) return json({ error: 'job not found' }, 404)
+        if (!job) return Response.json({ error: 'job not found' }, { status: 404 })
         if (job.status !== 'done' || !job.filename) {
-          return json({ error: `job is ${job.status}, not ready` }, 409)
+          return Response.json({ error: `job is ${job.status}, not ready` }, { status: 409 })
         }
 
         const path = join(job.dir, job.filename)
