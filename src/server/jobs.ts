@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { rmSync } from 'node:fs'
-import { mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtemp, readdir, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -146,12 +146,17 @@ export function friendlyError(stderr: string): string {
   return text || 'yt-dlp failed without saying why.'
 }
 
-async function cookiesFile(dir: string): Promise<string[]> {
-  const cookies = process.env.YTDLP_COOKIES
-  if (!cookies) return []
+/**
+ * Every yt-dlp spawn needs these, not just downloads: the metadata lookup hits
+ * the same bot wall. The dir sits outside the sweeper's `dl-` prefix, since
+ * yt-dlp saves the jar back on exit and the next spawn wants it.
+ */
+const COOKIE_ARGS: string[] = []
+if (process.env.YTDLP_COOKIES) {
+  const dir = mkdtempSync(join(tmpdir(), 'ytdlp-cookies-'))
   const path = join(dir, 'cookies.txt')
-  await writeFile(path, cookies, 'utf8')
-  return ['--cookies', path]
+  writeFileSync(path, process.env.YTDLP_COOKIES, 'utf8')
+  COOKIE_ARGS.push('--cookies', path)
 }
 
 /** Title, duration and thumbnail, without touching the video itself. */
@@ -162,6 +167,7 @@ export async function fetchInfo(url: string): Promise<{
   uploader: string | null
 }> {
   const args = [
+    ...COOKIE_ARGS,
     '--no-playlist',
     '--skip-download',
     '--no-warnings',
@@ -245,7 +251,7 @@ export async function createJob(url: string, mode: Mode): Promise<Job> {
 
   const args = [
     ...MODES[mode],
-    ...(await cookiesFile(dir)),
+    ...COOKIE_ARGS,
     '--no-playlist',
     '--newline',
     '--progress-template',
@@ -316,7 +322,7 @@ export async function createJob(url: string, mode: Mode): Promise<Job> {
     }
 
     const files = (await readdir(dir, { withFileTypes: true }))
-      .filter((f) => f.isFile() && f.name !== 'cookies.txt')
+      .filter((f) => f.isFile())
       .map((f) => f.name)
     const produced = files[0]
 
