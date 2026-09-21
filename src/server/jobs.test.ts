@@ -16,10 +16,10 @@ test('accepts real YouTube URLs', () => {
 test('rejects anything that is not an https YouTube URL', () => {
   for (const url of [
     'https://evil.example.com/video',
-    'http://www.youtube.com/watch?v=x', // plaintext
+    'http://www.youtube.com/watch?v=x',
     'file:///etc/passwd',
-    'https://169.254.169.254/latest/meta-data', // cloud metadata endpoint
-    'https://youtube.com.evil.example/watch?v=x', // suffix trick
+    'https://169.254.169.254/latest/meta-data',
+    'https://youtube.com.evil.example/watch?v=x',
     'https://localhost:3000/admin',
     42,
     null,
@@ -34,8 +34,8 @@ test('parses yt-dlp progress lines', () => {
     speed: 250000,
     eta: 12,
   })
-  assert.equal(parseProgress('PROG|2000|1000|1|1')?.percent, 100) // estimate undershot, clamp
-  assert.equal(parseProgress('PROG|0|NA|NA|NA')?.percent, null) // size unknown yet
+  assert.equal(parseProgress('PROG|2000|1000|1|1')?.percent, 100)
+  assert.equal(parseProgress('PROG|0|NA|NA|NA')?.percent, null)
   assert.equal(parseProgress('PROG|0|NA|NA|NA')?.speed, null)
   assert.equal(parseProgress('[download] Destination: foo.mp4'), null)
   assert.equal(parseProgress(''), null)
@@ -52,11 +52,9 @@ test('turns yt-dlp noise into something readable', () => {
     /YTDLP_COOKIES/,
   )
   assert.match(friendlyError('ERROR: [youtube] x: Private video'), /private/i)
-  // yt-dlp phrases these two ways; both must be caught.
   assert.match(friendlyError('ERROR: [youtube] x: This video is unavailable'), /unavailable/i)
   assert.match(friendlyError('ERROR: [youtube] x: Video unavailable'), /unavailable/i)
   assert.match(friendlyError('ERROR: unable to download: HTTP Error 403: Forbidden'), /out of date/i)
   assert.match(friendlyError(''), /without saying why/)
-  // Anything unrecognised is passed through rather than swallowed.
   assert.equal(friendlyError('ERROR: something new'), 'ERROR: something new')
 })

@@ -15,7 +15,6 @@ const TYPES: Record<string, string> = {
 export const Route = createFileRoute('/api/download')({
   server: {
     handlers: {
-      // Stream the finished file, then delete it. Query: ?id=<job id>
       GET: async ({ request }) => {
         const id = new URL(request.url).searchParams.get('id')
         const job = id ? getJob(id) : undefined
@@ -28,7 +27,6 @@ export const Route = createFileRoute('/api/download')({
         const ext = job.filename.split('.').pop() ?? ''
         const stream = createReadStream(path)
 
-        // The file only exists to be handed over once, so bin it either way.
         stream.on('close', () => void discardJob(job.id))
         stream.on('error', () => void discardJob(job.id))
 

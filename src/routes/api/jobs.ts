@@ -4,7 +4,6 @@ import { assertYoutubeUrl, cancelJob, createJob, getJob, isMode } from '../../se
 export const Route = createFileRoute('/api/jobs')({
   server: {
     handlers: {
-      // Start a download. Body: { url, mode }
       POST: async ({ request }) => {
         let body: unknown
         try {
@@ -36,7 +35,6 @@ export const Route = createFileRoute('/api/jobs')({
         }
       },
 
-      // Poll a download. Query: ?id=<job id>
       GET: async ({ request }) => {
         const id = new URL(request.url).searchParams.get('id')
         const job = id ? getJob(id) : undefined
@@ -56,7 +54,6 @@ export const Route = createFileRoute('/api/jobs')({
         })
       },
 
-      // Cancel a running download and bin whatever it wrote. Query: ?id=<job id>
       DELETE: async ({ request }) => {
         const id = new URL(request.url).searchParams.get('id')
         if (!id) return Response.json({ error: 'id is required' }, { status: 400 })

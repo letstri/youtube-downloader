@@ -63,8 +63,6 @@ function Home() {
     [],
   )
 
-  // Look the video up as soon as the link looks plausible, so there is
-  // something to confirm against before committing to a download.
   useEffect(() => {
     clearTimeout(debounce.current)
     setInfo(null)
@@ -79,7 +77,6 @@ function Home() {
         const data = await res.json()
         if (res.ok) setInfo(data)
       } catch {
-        // A failed preview is not worth an error message; the download will say.
       } finally {
         setInfoLoading(false)
       }

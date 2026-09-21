@@ -98,6 +98,13 @@ deletes too:
 - **yt-dlp goes stale.** YouTube breaks extraction every few weeks; the symptom
   is `HTTP Error 403` partway through a download. The Dockerfile pulls the
   latest release at build time, so redeploying is the fix.
+- **The bot wall is about the IP, not the code.** YouTube scores datacenter
+  ranges (every Railway/VPS instance) far below home connections, so "prove
+  it is not a bot" can happen on a perfectly public video. Every spawn already
+  asks for extra player clients and solves the JS challenge with `node`, which
+  clears most of them; the rest need `YTDLP_COOKIES`, or running it somewhere
+  residential. Cookies exported from a real account get burned fast from a
+  datacenter IP — use a throwaway account, not your own.
 - Only YouTube hosts are accepted. That check is the SSRF boundary, not a
   convenience — `yt-dlp` will happily fetch internal addresses otherwise. It is
   also the only input restriction left, so keep it.

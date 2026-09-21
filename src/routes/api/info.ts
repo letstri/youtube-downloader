@@ -4,7 +4,6 @@ import { assertYoutubeUrl, fetchInfo } from '../../server/jobs'
 export const Route = createFileRoute('/api/info')({
   server: {
     handlers: {
-      // Title, duration and thumbnail for a link, without downloading it.
       GET: async ({ request }) => {
         const raw = new URL(request.url).searchParams.get('url')
 

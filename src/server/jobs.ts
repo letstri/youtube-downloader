@@ -16,14 +16,8 @@ const YOUTUBE_HOSTS = new Set([
   'www.youtube-nocookie.com',
 ])
 
-/** Every temp dir this service makes starts with this, so orphans are findable. */
 const DIR_PREFIX = 'dl-'
 
-/**
- * Only https YouTube URLs are accepted. yt-dlp is happy to fetch arbitrary
- * hosts (including private network addresses), so this is the SSRF boundary,
- * not a convenience check. Never relax it to "any URL yt-dlp supports".
- */
 export function assertYoutubeUrl(raw: unknown): string {
   if (typeof raw !== 'string' || raw.length > 2048) {
     throw new Error('url must be a string')
@@ -42,16 +36,13 @@ export function assertYoutubeUrl(raw: unknown): string {
 }
 
 export const MODES = {
-  /** Max quality, any codec (AV1/VP9, 4K+). mkv because it muxes anything. */
   max: ['-f', 'bv*+ba/b', '--merge-output-format', 'mkv'],
-  /** H.264 + AAC, capped at 1080p by YouTube, but opens in QuickTime/iOS/anything. */
   compatible: [
     '-f',
     'bv*[vcodec^=avc1]+ba[acodec^=mp4a]/b[ext=mp4]/b',
     '--merge-output-format',
     'mp4',
   ],
-  /** Audio only, mp3. */
   audio: ['-f', 'ba/b', '-x', '--audio-format', 'mp3'],
 } as const
 
@@ -66,14 +57,10 @@ export type Job = {
   url: string
   mode: Mode
   status: 'running' | 'done' | 'error' | 'cancelled'
-  /** 0-100 for the file currently downloading, null before the first progress line. */
   percent: number | null
-  /** Bytes per second, straight from yt-dlp. */
   speed: number | null
-  /** Seconds remaining for the current stream. */
   eta: number | null
   stage: string
-  /** Which stream of the download we are on: YouTube serves video and audio apart. */
   step: number
   filename: string | null
   size: number | null
@@ -104,10 +91,6 @@ export type Progress = {
   eta: number | null
 }
 
-/**
- * yt-dlp writes one of these per progress tick because of --progress-template.
- * Format: `PROG|<downloaded>|<total or NA>|<bytes per sec or NA>|<eta secs or NA>`
- */
 export function parseProgress(line: string): Progress | null {
   if (!line.startsWith('PROG|')) return null
   const [, doneRaw, totalRaw, speedRaw, etaRaw] = line.split('|')
@@ -127,7 +110,6 @@ export function parseProgress(line: string): Progress | null {
   return { percent, speed: num(speedRaw), eta: num(etaRaw) }
 }
 
-/** yt-dlp's failures are walls of text. Say the useful thing instead. */
 export function friendlyError(stderr: string): string {
   const text = stderr.trim()
   if (/confirm you(')?re not a bot|Sign in to confirm/i.test(text)) {
@@ -146,20 +128,20 @@ export function friendlyError(stderr: string): string {
   return text || 'yt-dlp failed without saying why.'
 }
 
-/**
- * Every yt-dlp spawn needs these, not just downloads: the metadata lookup hits
- * the same bot wall. The dir sits outside the sweeper's `dl-` prefix, since
- * yt-dlp saves the jar back on exit and the next spawn wants it.
- */
-const COOKIE_ARGS: string[] = []
+const COMMON_ARGS = [
+  '--js-runtimes',
+  'node',
+  '--extractor-args',
+  'youtube:player_client=default,tv_simply,android_vr,web_embedded',
+]
+
 if (process.env.YTDLP_COOKIES) {
   const dir = mkdtempSync(join(tmpdir(), 'ytdlp-cookies-'))
   const path = join(dir, 'cookies.txt')
   writeFileSync(path, process.env.YTDLP_COOKIES, 'utf8')
-  COOKIE_ARGS.push('--cookies', path)
+  COMMON_ARGS.push('--cookies', path)
 }
 
-/** Title, duration and thumbnail, without touching the video itself. */
 export async function fetchInfo(url: string): Promise<{
   title: string
   duration: number | null
@@ -167,7 +149,7 @@ export async function fetchInfo(url: string): Promise<{
   uploader: string | null
 }> {
   const args = [
-    ...COOKIE_ARGS,
+    ...COMMON_ARGS,
     '--no-playlist',
     '--skip-download',
     '--no-warnings',
@@ -182,7 +164,6 @@ export async function fetchInfo(url: string): Promise<{
     let out = ''
     let err = ''
 
-    // A hung metadata lookup must not pin a process forever.
     const timeout = setTimeout(() => {
       proc.kill('SIGKILL')
       reject(new Error('Timed out reading video info.'))
@@ -251,7 +232,7 @@ export async function createJob(url: string, mode: Mode): Promise<Job> {
 
   const args = [
     ...MODES[mode],
-    ...COOKIE_ARGS,
+    ...COMMON_ARGS,
     '--no-playlist',
     '--newline',
     '--progress-template',
@@ -263,7 +244,6 @@ export async function createJob(url: string, mode: Mode): Promise<Job> {
     url,
   ]
 
-  // spawn with an argv array, never a shell string: the URL is user input.
   const proc = spawn('yt-dlp', args, { stdio: ['ignore', 'pipe', 'pipe'] })
   job.proc = proc
 
@@ -279,7 +259,6 @@ export async function createJob(url: string, mode: Mode): Promise<Job> {
         job.eta = progress.eta
         job.stage = 'downloading'
       } else if (line.includes('Destination:')) {
-        // YouTube serves video and audio separately, so this fires once per stream.
         job.step += 1
       } else if (line.includes('[Merger]')) {
         job.stage = 'merging video and audio'
@@ -306,7 +285,6 @@ export async function createJob(url: string, mode: Mode): Promise<Job> {
       err.message.includes('ENOENT')
         ? 'yt-dlp is not installed on the server'
         : err.message
-    // Nothing usable was produced, so do not wait for the sweep to reclaim it.
     void rm(job.dir, { recursive: true, force: true })
   })
 
@@ -345,7 +323,6 @@ export async function createJob(url: string, mode: Mode): Promise<Job> {
   return job
 }
 
-/** Forget the job and delete whatever it wrote. Safe to call twice. */
 export async function discardJob(id: string): Promise<void> {
   const job = jobs.get(id)
   if (!job) return
@@ -362,11 +339,6 @@ export async function cancelJob(id: string): Promise<boolean> {
   return true
 }
 
-/**
- * Videos are large and this disk is shared, so nothing is allowed to outlive
- * its job. Files go on delivery; these are the paths that bypass delivery —
- * a job nobody collected, and dirs stranded by a crash or a redeploy.
- */
 async function sweepOrphans(): Promise<void> {
   const live = new Set([...jobs.values()].map((j) => j.dir))
   const base = tmpdir()
@@ -384,11 +356,8 @@ async function sweepOrphans(): Promise<void> {
   }
 }
 
-// Reclaim anything a previous process left behind before serving a request.
 void sweepOrphans()
 
-// ponytail: in-memory job map + interval sweep. Single Railway instance only.
-// If this ever scales past one replica, jobs need Redis and files need S3.
 const sweep = setInterval(() => {
   const cutoff = Date.now() - JOB_TTL_MS
   for (const job of jobs.values()) {
@@ -398,7 +367,6 @@ const sweep = setInterval(() => {
 }, 5 * 60 * 1000)
 sweep.unref?.()
 
-// Railway sends SIGTERM on every redeploy; take the files with us.
 let shuttingDown = false
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {
   process.on(signal, () => {
@@ -407,7 +375,6 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
     for (const job of jobs.values()) {
       job.proc?.kill('SIGKILL')
       try {
-        // Sync on purpose: the process is on its way out, promises will not settle.
         rmSync(job.dir, { recursive: true, force: true })
       } catch {}
     }
