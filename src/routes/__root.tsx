@@ -42,12 +42,12 @@ const css = `
   p.sub { color: var(--muted); margin: 0; font-size: 14px; }
 
   form { display: flex; flex-direction: column; gap: 14px; }
-  input[type=url], button { font: inherit; border-radius: 9px; padding: 11px 13px; }
-  input[type=url] { border: 1px solid var(--line); background: var(--card); color: var(--fg);
+  input:is([type=url],[type=text]), button { font: inherit; border-radius: 9px; padding: 11px 13px; }
+  input:is([type=url],[type=text]) { border: 1px solid var(--line); background: var(--card); color: var(--fg);
     width: 100%; }
-  input[type=url]:focus-visible, button:focus-visible, label:focus-within {
+  input:is([type=url],[type=text]):focus-visible, button:focus-visible, label:focus-within {
     outline: 2px solid var(--accent); outline-offset: 1px; }
-  input[type=url]:disabled { opacity: 0.6; }
+  input:is([type=url],[type=text]):disabled { opacity: 0.6; }
 
   .preview { display: flex; gap: 12px; align-items: center; border: 1px solid var(--line);
     border-radius: 9px; padding: 9px; background: var(--card); }
@@ -68,6 +68,10 @@ const css = `
   fieldset label.picked { border-color: var(--accent); background: var(--accent-soft); }
   fieldset input[type=radio] { accent-color: var(--accent); margin: 0; grid-row: span 2; }
   fieldset label small { color: var(--muted); font-size: 12.5px; grid-column: 2; }
+  .toggle { display: flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer;
+    width: fit-content; border-radius: 6px; }
+  .toggle input { accent-color: var(--accent); margin: 0; }
+  .clip { display: flex; gap: 8px; align-items: center; color: var(--muted); }
 
   button { background: var(--accent); color: #fff; border: 1px solid transparent;
     cursor: pointer; font-weight: 500; }

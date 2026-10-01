@@ -52,6 +52,23 @@ export function isMode(value: unknown): value is Mode {
   return typeof value === 'string' && value in MODES
 }
 
+export function parseTime(raw: unknown): number | null {
+  if (raw === undefined || raw === null || raw === '') return null
+  const text = typeof raw === 'string' ? raw.trim() : ''
+  if (!/^\d+(:\d{1,2}){0,2}(\.\d+)?$/.test(text)) {
+    throw new Error(`"${String(raw)}" is not a time like 1:30 or 90`)
+  }
+  return text.split(':').reduce((acc, part) => acc * 60 + Number(part), 0)
+}
+
+export function clipArgs(start: number | null, end: number | null): string[] {
+  if (start === null && end === null) return []
+  const from = start ?? 0
+  if (end !== null && end <= from) throw new Error('Clip end must be after its start.')
+  // Cutting at exact times re-encodes the clip, which is slower than a plain download.
+  return ['--download-sections', `*${from}-${end ?? 'inf'}`, '--force-keyframes-at-cuts']
+}
+
 export type Job = {
   id: string
   url: string
@@ -203,7 +220,7 @@ export async function fetchInfo(url: string): Promise<{
   })
 }
 
-export async function createJob(url: string, mode: Mode): Promise<Job> {
+export async function createJob(url: string, mode: Mode, clip: string[] = []): Promise<Job> {
   if (runningCount() >= MAX_CONCURRENT) {
     throw new Error(`Too many downloads running (limit ${MAX_CONCURRENT}). Try again shortly.`)
   }
@@ -232,6 +249,7 @@ export async function createJob(url: string, mode: Mode): Promise<Job> {
 
   const args = [
     ...MODES[mode],
+    ...clip,
     ...COMMON_ARGS,
     '--no-playlist',
     '--newline',

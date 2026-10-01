@@ -47,6 +47,9 @@ function clock(seconds: number) {
 function Home() {
   const [url, setUrl] = useState('')
   const [mode, setMode] = useState('max')
+  const [cut, setCut] = useState(false)
+  const [clipStart, setClipStart] = useState('')
+  const [clipEnd, setClipEnd] = useState('')
   const [info, setInfo] = useState<Info | null>(null)
   const [infoLoading, setInfoLoading] = useState(false)
   const [job, setJob] = useState<Status | null>(null)
@@ -109,7 +112,7 @@ function Home() {
     const res = await fetch('/api/jobs', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ url, mode }),
+      body: JSON.stringify(cut ? { url, mode, start: clipStart, end: clipEnd } : { url, mode }),
     })
     const data = await res.json()
     if (!res.ok) {
@@ -185,6 +188,40 @@ function Home() {
             </label>
           ))}
         </fieldset>
+
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={cut}
+            disabled={running}
+            onChange={(e) => setCut(e.target.checked)}
+          />
+          Cut a part of the video
+        </label>
+
+        {cut && (
+          <div className="clip">
+            <input
+              type="text"
+              inputMode="numeric"
+              aria-label="Clip start"
+              placeholder="0:00"
+              value={clipStart}
+              disabled={running}
+              onChange={(e) => setClipStart(e.target.value)}
+            />
+            to
+            <input
+              type="text"
+              inputMode="numeric"
+              aria-label="Clip end"
+              placeholder={info?.duration ? clock(info.duration) : 'end'}
+              value={clipEnd}
+              disabled={running}
+              onChange={(e) => setClipEnd(e.target.value)}
+            />
+          </div>
+        )}
 
         <button type="submit" disabled={busy || !url}>
           {busy ? 'Working…' : `Download ${selected?.label.toLowerCase()}`}

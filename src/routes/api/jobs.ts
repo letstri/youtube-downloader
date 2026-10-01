@@ -1,5 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { assertYoutubeUrl, cancelJob, createJob, getJob, isMode } from '../../server/jobs'
+import {
+  assertYoutubeUrl,
+  cancelJob,
+  clipArgs,
+  createJob,
+  getJob,
+  isMode,
+  parseTime,
+} from '../../server/jobs'
 
 export const Route = createFileRoute('/api/jobs')({
   server: {
@@ -12,7 +20,7 @@ export const Route = createFileRoute('/api/jobs')({
           return Response.json({ error: 'body must be JSON' }, { status: 400 })
         }
 
-        const { url, mode } = (body ?? {}) as { url?: unknown; mode?: unknown }
+        const { url, mode, start, end } = (body ?? {}) as Record<string, unknown>
         if (!isMode(mode)) {
           return Response.json(
             { error: 'mode must be max, compatible or audio' },
@@ -21,14 +29,16 @@ export const Route = createFileRoute('/api/jobs')({
         }
 
         let safeUrl: string
+        let clip: string[]
         try {
           safeUrl = assertYoutubeUrl(url)
+          clip = clipArgs(parseTime(start), parseTime(end))
         } catch (err) {
           return Response.json({ error: (err as Error).message }, { status: 400 })
         }
 
         try {
-          const job = await createJob(safeUrl, mode)
+          const job = await createJob(safeUrl, mode, clip)
           return Response.json({ id: job.id }, { status: 202 })
         } catch (err) {
           return Response.json({ error: (err as Error).message }, { status: 429 })

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { assertYoutubeUrl, friendlyError, isMode, parseProgress } from './jobs.ts'
+import { assertYoutubeUrl, clipArgs, friendlyError, isMode, parseProgress, parseTime } from './jobs.ts'
 
 test('accepts real YouTube URLs', () => {
   for (const url of [
@@ -57,4 +57,21 @@ test('turns yt-dlp noise into something readable', () => {
   assert.match(friendlyError('ERROR: unable to download: HTTP Error 403: Forbidden'), /out of date/i)
   assert.match(friendlyError(''), /without saying why/)
   assert.equal(friendlyError('ERROR: something new'), 'ERROR: something new')
+})
+
+test('reads clip times and builds the cut', () => {
+  assert.equal(parseTime(''), null)
+  assert.equal(parseTime(undefined), null)
+  assert.equal(parseTime('40'), 40)
+  assert.equal(parseTime('1:10'), 70)
+  assert.equal(parseTime('1:02:03.5'), 3723.5)
+  for (const bad of ['abc', '-5', '1:2:3:4', '10-40', '*10', 42]) {
+    assert.throws(() => parseTime(bad), `should have rejected ${String(bad)}`)
+  }
+  assert.deepEqual(clipArgs(null, null), [])
+  assert.deepEqual(clipArgs(10, 40).slice(0, 2), ['--download-sections', '*10-40'])
+  assert.equal(clipArgs(null, 40)[1], '*0-40')
+  assert.equal(clipArgs(10, null)[1], '*10-inf')
+  assert.throws(() => clipArgs(40, 10))
+  assert.throws(() => clipArgs(10, 10))
 })
