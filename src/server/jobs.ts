@@ -150,8 +150,6 @@ const COMMON_ARGS = [
   'node',
   '--extractor-args',
   'youtube:player_client=default,tv_simply,android_vr,web_embedded',
-  '--extractor-args',
-  'youtubepot-bgutilscript:server_home=/opt/bgutil',
 ]
 
 if (process.env.YTDLP_VERBOSE) COMMON_ARGS.push('-v')
