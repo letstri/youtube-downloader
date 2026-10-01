@@ -1,7 +1,1 @@
-node_modules
-.output
-.nitro
-.tanstack
-dist
-.env
 mac/build
