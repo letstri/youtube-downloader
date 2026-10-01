@@ -30,6 +30,12 @@ enum CoreTests {
     precondition(friendlyError("") == "yt-dlp failed without saying why.")
 
     precondition(clock(70) == "1:10" && clock(3723) == "1:02:03")
+
+    precondition(isNewer("v1.1", than: "1.0"))
+    precondition(isNewer("v1.0.1", than: "1.0"))
+    precondition(isNewer("v1.10", than: "1.9"))
+    precondition(!isNewer("v1.0.0", than: "1.0"))
+    precondition(!isNewer("v0.9", than: "1.0"))
     print("core tests passed")
   }
 }

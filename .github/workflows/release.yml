@@ -1,0 +1,20 @@
+# Push a tag like v1.1.0 to build the DMG and publish it as a GitHub Release.
+# The app checks the latest release on launch and offers to update itself.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+      - run: VERSION="${GITHUB_REF_NAME#v}" sh mac/build.sh
+      - run: gh release create "$GITHUB_REF_NAME" mac/build/youtube-downloader.dmg --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}

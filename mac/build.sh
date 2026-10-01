@@ -31,8 +31,13 @@ unzip -oq "$CACHE/ffprobe.zip" -d "$RES/bin"
 chmod +x "$RES/bin/"*
 
 swiftc -O -swift-version 5 -parse-as-library -target arm64-apple-macos26.0 \
-  mac/App.swift mac/Core.swift -o "$APP/Contents/MacOS/youtube-downloader"
+  mac/App.swift mac/Core.swift mac/Updater.swift -o "$APP/Contents/MacOS/youtube-downloader"
 cp mac/Info.plist "$APP/Contents/Info.plist"
+# CI passes VERSION from the release tag; the updater compares it with the latest release.
+if [ -n "${VERSION:-}" ]; then
+  plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP/Contents/Info.plist"
+  plutil -replace CFBundleVersion -string "$VERSION" "$APP/Contents/Info.plist"
+fi
 
 mkdir "$OUT/AppIcon.iconset"
 for size in 16 32 128 256 512; do

@@ -233,9 +233,25 @@ final class Downloader {
 
 struct ContentView: View {
   @Bindable var model: Downloader
+  let updater = Updater.shared
 
   var body: some View {
     Form {
+      if let release = updater.available {
+        Section {
+          HStack {
+            Label("Version \(release.tag_name.trimmingPrefix("v")) is available", systemImage: "arrow.down.circle.fill")
+            Spacer()
+            if updater.installing {
+              ProgressView().controlSize(.small)
+            } else {
+              Button("Update") { Task { await updater.install() } }
+                .buttonStyle(.glassProminent)
+            }
+          }
+        }
+      }
+
       Section {
         TextField("Link", text: $model.url, prompt: Text("https://www.youtube.com/watch?v=…"))
         if model.infoLoading || model.info != nil {
@@ -269,6 +285,7 @@ struct ContentView: View {
     .animation(.default, value: model.cut)
     .animation(.default, value: model.state)
     .onChange(of: model.url) { model.lookUp() }
+    .task { await updater.check() }
   }
 }
 

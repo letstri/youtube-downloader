@@ -101,3 +101,16 @@ func clock(_ seconds: Double) -> String {
   let (h, m, rest) = (s / 3600, s % 3600 / 60, s % 60)
   return h > 0 ? String(format: "%d:%02d:%02d", h, m, rest) : String(format: "%d:%02d", m, rest)
 }
+
+/// Compares release tags like "v1.2.0" against the running version "1.1".
+func isNewer(_ tag: String, than current: String) -> Bool {
+  func parts(_ s: String) -> [Int] {
+    s.trimmingCharacters(in: CharacterSet(charactersIn: "v")).split(separator: ".").map { Int($0) ?? 0 }
+  }
+  let (a, b) = (parts(tag), parts(current))
+  for i in 0..<max(a.count, b.count) {
+    let (x, y) = (i < a.count ? a[i] : 0, i < b.count ? b[i] : 0)
+    if x != y { return x > y }
+  }
+  return false
+}
