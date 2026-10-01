@@ -154,6 +154,8 @@ const COMMON_ARGS = [
   'youtubepot-bgutilscript:server_home=/opt/bgutil',
 ]
 
+if (process.env.YTDLP_VERBOSE) COMMON_ARGS.push('-v')
+
 if (process.env.YTDLP_COOKIES) {
   const dir = mkdtempSync(join(tmpdir(), 'ytdlp-cookies-'))
   const path = join(dir, 'cookies.txt')
@@ -296,7 +298,7 @@ export async function createJob(url: string, mode: Mode, clip: string[] = []): P
 
   proc.stderr.setEncoding('utf8')
   proc.stderr.on('data', (chunk: string) => {
-    stderrTail = (stderrTail + chunk).slice(-2000)
+    stderrTail = (stderrTail + chunk).slice(-8000)
   })
 
   proc.on('error', (err) => {
@@ -315,6 +317,7 @@ export async function createJob(url: string, mode: Mode, clip: string[] = []): P
     if (code !== 0) {
       job.status = 'error'
       job.error = friendlyError(stderrTail)
+      console.error(`yt-dlp failed for ${job.url}:\n${stderrTail}`)
       void rm(job.dir, { recursive: true, force: true })
       return
     }
