@@ -47,13 +47,25 @@ done
 iconutil -c icns "$OUT/AppIcon.iconset" -o "$RES/AppIcon.icns"
 rm -rf "$OUT/AppIcon.iconset"
 
-# Apple Silicon refuses unsigned binaries; ad-hoc sign whatever is not signed yet.
-for f in "$RES/bin/"*; do codesign -s - "$f" 2>/dev/null || true; done
-codesign --force -s - "$APP"
+# Releases pass SIGN_IDENTITY (a "Developer ID Application" identity) so the app can be notarized.
+# Without it everything is ad-hoc signed, which is enough to run locally.
+SIGN=${SIGN_IDENTITY:--}
+sign() {
+  if [ "$SIGN" = - ]; then codesign --force --options runtime -s - "$@"
+  else codesign --force --options runtime --timestamp -s "$SIGN" "$@"; fi
+}
+for f in "$RES/bin/"*; do
+  case "$(basename "$f")" in
+    node | yt-dlp) sign --entitlements mac/tools.entitlements "$f" ;;
+    *) sign "$f" ;;
+  esac
+done
+sign "$APP"
 
 mkdir "$OUT/dmg"
 cp -R "$APP" "$OUT/dmg/"
 ln -s /Applications "$OUT/dmg/Applications"
 hdiutil create -volname "YouTube Downloader" -srcfolder "$OUT/dmg" -ov -format UDZO "$DMG"
+[ "$SIGN" = - ] || codesign --timestamp -s "$SIGN" "$DMG"
 rm -rf "$OUT/dmg"
 echo "Built $DMG"

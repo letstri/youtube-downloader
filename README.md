@@ -19,8 +19,8 @@ sh mac/build.sh   # -> mac/build/youtube-downloader.dmg
 Needs Xcode command line tools. Apple Silicon, macOS 26+. yt-dlp, ffmpeg and
 node are downloaded and bundled into the app, so users need nothing installed.
 
-On another Mac, allow the app once in System Settings → Privacy & Security →
-Open Anyway (it is not notarized).
+Releases are signed and notarized, so they open without warnings. Local builds
+are only ad-hoc signed.
 
 ## Releases and updates
 
