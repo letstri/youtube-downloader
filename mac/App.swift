@@ -242,7 +242,9 @@ struct ContentView: View {
           HStack {
             Label("Version \(release.tag_name.trimmingPrefix("v")) is available", systemImage: "arrow.down.circle.fill")
             Spacer()
-            if updater.installing {
+            if let progress = updater.progress {
+              ProgressView(progress).labelsHidden().frame(width: 120)
+            } else if updater.installing {
               ProgressView().controlSize(.small)
             } else {
               Button("Update") { Task { await updater.install() } }

@@ -18,6 +18,7 @@ final class Updater {
 
   var available: Release?
   var installing = false
+  var progress: Foundation.Progress?
 
   func check() async {
     let url = URL(string: "https://api.github.com/repos/letstri/youtube-downloader/releases/latest")!
@@ -41,17 +42,29 @@ final class Updater {
 
     installing = true
     do {
-      let (downloaded, _) = try await URLSession.shared.download(from: dmg.browser_download_url)
       let file = FileManager.default.temporaryDirectory.appendingPathComponent("youtube-downloader-update.dmg")
-      try? FileManager.default.removeItem(at: file)
-      try FileManager.default.moveItem(at: downloaded, to: file)
+      try await withCheckedThrowingContinuation { (done: CheckedContinuation<Void, Error>) in
+        let task = URLSession.shared.downloadTask(with: dmg.browser_download_url) { downloaded, _, error in
+          // The downloaded file is deleted when this handler returns, so move it now.
+          do {
+            guard let downloaded else { throw error ?? URLError(.unknown) }
+            try? FileManager.default.removeItem(at: file)
+            try FileManager.default.moveItem(at: downloaded, to: file)
+            done.resume()
+          } catch {
+            done.resume(throwing: error)
+          }
+        }
+        progress = task.progress
+        task.resume()
+      }
 
       // Runs after this app quits: mount the DMG, replace the app, relaunch.
       let script = """
         set -e
         while kill -0 "$1" 2>/dev/null; do sleep 0.2; done
         mnt=$(mktemp -d)
-        hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "$2" >/dev/null
+        hdiutil attach -nobrowse -readonly -noverify -mountpoint "$mnt" "$2" >/dev/null
         new=$(find "$mnt" -maxdepth 1 -name '*.app' | head -n 1)
         ditto "$new" "$3.new"
         hdiutil detach "$mnt" >/dev/null
@@ -67,6 +80,7 @@ final class Updater {
       NSApp.terminate(nil)
     } catch {
       installing = false
+      progress = nil
       NSWorkspace.shared.open(release.html_url)
     }
   }
