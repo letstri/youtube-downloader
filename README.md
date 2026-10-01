@@ -1,6 +1,6 @@
 <img src="mac/logo.svg" alt="" width="72">
 
-# youtube-downloader
+# YouTube Downloader
 
 A native Mac app: paste a YouTube link, pick a quality, optionally cut a part,
 get the file in `~/Downloads`. Built on `yt-dlp` and `ffmpeg`.
