@@ -1,13 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="100 100 824 824">
   <defs>
     <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#232323"/>
-      <stop offset="1" stop-color="#121212"/>
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F1F1F1"/>
     </linearGradient>
   </defs>
-  <rect x="101" y="101" width="822" height="822" rx="185" fill="url(#tile)" stroke="#2A2A2A" stroke-width="2"/>
-  <g transform="translate(222 222) scale(5.8)" fill="#FFC61A">
-    <path d="M24 19 L76 19 L50 59 Z" stroke="#FFC61A" stroke-width="10" stroke-linejoin="round"/>
-    <rect x="21" y="73" width="58" height="11" rx="5.5"/>
+  <rect x="101" y="101" width="822" height="822" rx="185" fill="url(#tile)" stroke="#E2E2E2" stroke-width="2"/>
+  <!-- Hugeicons ArrowBigDownDash -->
+  <g transform="translate(232 232) scale(23.3333)" fill="none" stroke="#FF3B30" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14.9351 18.7236L17.3928 16.0046C19.335 13.8559 20.3061 12.7816 19.9143 11.8908C19.5225 11 18.0788 11 15.1915 11H15V10C15 8.58579 15 7.87868 14.5607 7.43934C14.1213 7 13.4142 7 12 7C10.5858 7 9.87868 7 9.43934 7.43934C9 7.87868 9 8.58579 9 10V11H8.80852C5.92117 11 4.47749 11 4.08568 11.8908C3.69387 12.7816 4.66499 13.8559 6.60724 16.0046L9.06495 18.7236C10.4367 20.2412 11.1226 21 12 21C12.8774 21 13.5633 20.2412 14.9351 18.7236Z"/>
+    <path d="M9 3H15"/>
   </g>
 </svg>
