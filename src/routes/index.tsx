@@ -138,6 +138,7 @@ function Home() {
   return (
     <main>
       <header>
+        <img src="/logo.svg" alt="" width={44} height={44} />
         <h1>YouTube Downloader</h1>
         <p className="sub">Paste a link, pick a quality, get the file.</p>
       </header>

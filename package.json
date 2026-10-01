@@ -1,5 +1,5 @@
 {
-  "name": "downloader",
+  "name": "youtube-downloader",
   "private": true,
   "type": "module",
   "scripts": {
@@ -7,7 +7,8 @@
     "build": "vite build",
     "start": "node .output/server/index.mjs",
     "test": "node --test src/server/jobs.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "mac": "sh mac/build.sh"
   },
   "dependencies": {
     "@tanstack/react-router": "^1.170.36",

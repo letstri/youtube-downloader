@@ -1,4 +1,6 @@
-# downloader
+<img src="public/logo.svg" alt="" width="72">
+
+# youtube-downloader
 
 Small TanStack Start service that wraps `yt-dlp`. Paste a YouTube link, pick a
 quality, get the file. Built to run as a single container on Railway.
@@ -29,6 +31,19 @@ npm test             # URL validation + progress parsing
 npm run typecheck
 npm run build && npm start
 ```
+
+## Mac app
+
+```sh
+npm run mac   # -> mac/build/youtube-downloader.dmg (Apple Silicon)
+```
+
+A native SwiftUI app (macOS 26+, Liquid Glass) in `mac/`. It runs a bundled
+yt-dlp, ffmpeg and node directly, with no web server, so downloads come from
+your own connection. YouTube rarely bot-checks home IPs the way it does
+Railway's. Saved files go to `~/Downloads`. The app is ad-hoc signed only: on
+another Mac, open it once via System Settings → Privacy & Security → Open
+Anyway.
 
 ## Deploying to Railway
 

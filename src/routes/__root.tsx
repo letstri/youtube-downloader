@@ -7,6 +7,7 @@ export const Route = createRootRoute({
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       { title: 'YouTube Downloader' },
     ],
+    links: [{ rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
   }),
   component: RootDocument,
 })
@@ -38,6 +39,7 @@ const css = `
     -apple-system, system-ui, sans-serif; padding: 48px 16px 64px; }
   main { max-width: 560px; margin: 0 auto; }
   header { margin-bottom: 28px; }
+  header img { display: block; margin-bottom: 14px; }
   h1 { font-size: 23px; margin: 0 0 4px; letter-spacing: -0.015em; }
   p.sub { color: var(--muted); margin: 0; font-size: 14px; }
 
