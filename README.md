@@ -10,14 +10,21 @@ Quality options:
 - **Compatible:** mp4, up to 1080p. Plays anywhere.
 - **Audio:** mp3.
 
+## Download
+
+Get `youtube-downloader.dmg` from the
+[latest release](https://github.com/letstri/youtube-downloader/releases/latest),
+open it and drag the app to Applications. Requires an Apple Silicon Mac with
+macOS 26 or newer. The app updates itself when a new release is out.
+
 ## Build
 
 ```sh
 sh mac/build.sh   # -> mac/build/youtube-downloader.dmg
 ```
 
-Needs Xcode command line tools. Apple Silicon, macOS 26+. yt-dlp, ffmpeg and
-node are downloaded and bundled into the app, so users need nothing installed.
+Needs Xcode command line tools. yt-dlp, ffmpeg and node are downloaded and
+bundled into the app, so users need nothing installed.
 
 Releases are signed and notarized, so they open without warnings. Local builds
 are only ad-hoc signed.
