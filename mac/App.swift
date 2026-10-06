@@ -120,11 +120,16 @@ final class Downloader {
         "--no-playlist", "--newline", "--progress-template", progressTemplate,
         "-o", dir.path + "/%(title)s.%(ext)s", "--", link,
       ]
-    let (code, stderr) = await runYtDlp(
-      args,
-      onLine: { line in if self.jobID == id { self.handle(line) } },
-      started: { self.job = $0 })
-    guard jobID == id else { return }
+    var (code, stderr): (Int32, String) = (0, "")
+    for attempt in 1...3 {
+      if attempt > 1 { state = .running(Running(stage: "Retrying")) }
+      (code, stderr) = await runYtDlp(
+        args,
+        onLine: { line in if self.jobID == id { self.handle(line) } },
+        started: { self.job = $0 })
+      guard jobID == id else { return }
+      if code == 0 || !isRefusal(stderr) { break }
+    }
     job = nil
 
     guard code == 0 else {

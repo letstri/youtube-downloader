@@ -87,14 +87,15 @@ func friendlyError(_ stderr: String) -> String {
   if has("members-only|join this channel") { return "That video is members-only." }
   if has("video (is )?unavailable") { return "That video is unavailable." }
   if has("confirm your age|age-restricted") { return "That video is age-restricted." }
-  if has("HTTP Error 403") {
-    return "YouTube refused the download part-way through. yt-dlp may be out of date, so rebuild the app."
-  }
+  if isRefusal(text) { return "YouTube kept refusing the download. Wait a minute and try again." }
   if has("Unsupported URL|is not a valid URL") { return "yt-dlp did not recognise that link." }
   let lines = text.split(separator: "\n")
   if let error = lines.last(where: { $0.contains("ERROR") }) { return String(error) }
   return lines.last.map(String.init) ?? "yt-dlp failed without saying why."
 }
+
+/// YouTube sometimes hands out stream links that answer 403 straight away; a fresh attempt gets working ones.
+func isRefusal(_ stderr: String) -> Bool { stderr.contains("HTTP Error 403") }
 
 /// Drops leading dots so a title like ".Intro" does not become a hidden file.
 func visibleName(_ filename: String) -> String {

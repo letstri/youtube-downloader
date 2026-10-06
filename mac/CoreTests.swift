@@ -27,6 +27,8 @@ enum CoreTests {
     precondition(friendlyError("ERROR: [youtube] x: Sign in to confirm you’re not a bot").contains("bot"))
     precondition(friendlyError("ERROR: [youtube] x: Private video") == "That video is private.")
     precondition(friendlyError("noise\nERROR: something new\nmore noise") == "ERROR: something new")
+    precondition(isRefusal("ERROR: unable to download video data: HTTP Error 403: Forbidden"))
+    precondition(!isRefusal("ERROR: [youtube] x: Private video"))
     precondition(friendlyError("") == "yt-dlp failed without saying why.")
 
     precondition(visibleName(".Intro.mkv") == "Intro.mkv")
