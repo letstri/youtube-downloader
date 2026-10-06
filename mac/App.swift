@@ -48,7 +48,7 @@ final class Downloader {
   static let shared = Downloader()
 
   var url = ""
-  var mode = Mode.max
+  var mode = Mode.compatible
   var cut = false
   var clipStart = ""
   var clipEnd = ""

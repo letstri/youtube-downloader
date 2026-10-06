@@ -6,7 +6,7 @@ struct Failure: LocalizedError {
 }
 
 enum Mode: String, CaseIterable, Identifiable {
-  case max, compatible, audio
+  case compatible, max, audio
 
   var id: Self { self }
 
