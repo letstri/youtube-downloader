@@ -29,6 +29,10 @@ enum CoreTests {
     precondition(friendlyError("noise\nERROR: something new\nmore noise") == "ERROR: something new")
     precondition(friendlyError("") == "yt-dlp failed without saying why.")
 
+    precondition(visibleName(".Intro.mkv") == "Intro.mkv")
+    precondition(visibleName("Talk v1.2.mp4") == "Talk v1.2.mp4")
+    precondition(visibleName("....mkv") == "video.mkv")
+
     precondition(clock(70) == "1:10" && clock(3723) == "1:02:03")
 
     precondition(isNewer("v1.1", than: "1.0"))

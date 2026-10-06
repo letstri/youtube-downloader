@@ -131,14 +131,14 @@ final class Downloader {
       state = .failed(friendlyError(stderr))
       return
     }
-    let produced = (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil))?
-      .first { !$0.lastPathComponent.hasPrefix(".") }
+    // The folder is new for this job, so anything in it is the result, even a dotfile from a title starting with ".".
+    let produced = (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil))?.first
     guard let produced else {
       state = .failed("yt-dlp finished but produced no file.")
       return
     }
     do {
-      let dest = uniqueDownload(produced.lastPathComponent)
+      let dest = uniqueDownload(visibleName(produced.lastPathComponent))
       try fm.moveItem(at: produced, to: dest)
       state = .done(dest)
     } catch {

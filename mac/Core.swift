@@ -96,6 +96,13 @@ func friendlyError(_ stderr: String) -> String {
   return lines.last.map(String.init) ?? "yt-dlp failed without saying why."
 }
 
+/// Drops leading dots so a title like ".Intro" does not become a hidden file.
+func visibleName(_ filename: String) -> String {
+  let ext = (filename as NSString).pathExtension
+  let stem = (filename as NSString).deletingPathExtension.drop { $0 == "." }
+  return (stem.isEmpty ? "video" : String(stem)) + (ext.isEmpty ? "" : "." + ext)
+}
+
 func clock(_ seconds: Double) -> String {
   let s = Int(seconds.rounded())
   let (h, m, rest) = (s / 3600, s % 3600 / 60, s % 60)
